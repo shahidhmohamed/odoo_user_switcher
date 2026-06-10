@@ -1,0 +1,341 @@
+@keyframes ghori-us-fade-in {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes ghori-us-panel-in {
+    from {
+        opacity: 0;
+        transform: translateY(28px) scale(0.96);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+body.ghori-us-open {
+    overflow: hidden;
+}
+
+.ghori-us-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 2000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    background: rgba(15, 23, 42, 0.58);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    animation: ghori-us-fade-in 0.22s ease-out;
+}
+
+.ghori-us-panel {
+    width: 100%;
+    max-width: 960px;
+    padding: 2rem 2.25rem 1.5rem;
+    border-radius: 1.25rem;
+    outline: none;
+    overflow: visible;
+    background: rgba(255, 255, 255, 0.92);
+    box-shadow:
+        0 28px 80px rgba(15, 23, 42, 0.28),
+        0 0 0 1px rgba(255, 255, 255, 0.35) inset;
+    animation: ghori-us-panel-in 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.ghori-us-title {
+    font-size: 1.45rem;
+    font-weight: 700;
+    color: #0f172a;
+    text-align: center;
+}
+
+.ghori-us-subtitle {
+    margin-top: 0.35rem;
+    margin-bottom: 1.25rem;
+    text-align: center;
+    color: #64748b;
+    font-size: 0.92rem;
+}
+
+.ghori-us-carousel {
+    min-height: 200px;
+    overflow-x: auto;
+    overflow-y: visible;
+    text-align: center;
+    scroll-behavior: smooth;
+    scroll-padding-inline: 1.5rem;
+    -webkit-overflow-scrolling: touch;
+
+    &::-webkit-scrollbar {
+        height: 6px;
+    }
+
+    &::-webkit-scrollbar-thumb {
+        border-radius: 999px;
+        background: rgba(148, 163, 184, 0.45);
+    }
+}
+
+.ghori-us-carousel-track {
+    display: inline-flex;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 1.25rem;
+    box-sizing: border-box;
+    padding: 1rem 1.5rem 1.25rem;
+    text-align: center;
+}
+
+.ghori-us-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    flex: 0 0 152px;
+    width: 152px;
+    height: 184px;
+    padding: 0.5rem 0.75rem 1rem;
+    box-sizing: border-box;
+    border: 2px solid rgba(148, 163, 184, 0.35);
+    border-radius: 1rem;
+    background: #fff;
+    text-align: center;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+    transition:
+        opacity 0.24s ease,
+        box-shadow 0.24s ease,
+        border-color 0.24s ease,
+        transform 0.24s ease;
+    opacity: 0.55;
+    transform: translateY(4px);
+
+    &.is-selected {
+        opacity: 1;
+        transform: translateY(0);
+        border-color: rgba(13, 148, 136, 0.55);
+        box-shadow: 0 6px 18px rgba(15, 23, 42, 0.1);
+        z-index: 2;
+    }
+
+    &.is-left,
+    &.is-right {
+        opacity: 0.42;
+    }
+
+    &:hover {
+        opacity: 0.88;
+    }
+
+    &.is-selected:hover {
+        opacity: 1;
+    }
+}
+
+.ghori-us-add {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.65rem;
+    color: #0d9488;
+    border-style: dashed;
+    background: rgba(240, 253, 250, 0.75);
+    opacity: 0.8;
+    transform: translateY(4px);
+
+    &:hover {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.ghori-us-card-header {
+    position: relative;
+    flex: 0 0 1.25rem;
+    width: 100%;
+}
+
+.ghori-us-card-body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    width: 100%;
+    margin: 0 auto;
+}
+
+.ghori-us-avatar {
+    width: 56px;
+    height: 56px;
+    margin: 0 0 0.75rem;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    color: #fff;
+    font-weight: 700;
+    box-shadow: 0 4px 10px rgba(15, 23, 42, 0.16);
+    flex-shrink: 0;
+}
+
+.ghori-us-avatar-text {
+    display: block;
+    font-size: 1rem;
+    line-height: 1;
+    letter-spacing: 0.02em;
+    text-align: center;
+    user-select: none;
+}
+
+.ghori-us-card-label {
+    width: 100%;
+    font-weight: 600;
+    color: #0f172a;
+    font-size: 0.92rem;
+    line-height: 1.25;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ghori-us-card-login {
+    width: 100%;
+    margin-top: 0.25rem;
+    font-size: 0.78rem;
+    color: #64748b;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ghori-us-badge {
+    display: inline-block;
+    margin-top: 0.55rem;
+    padding: 0.15rem 0.5rem;
+    border-radius: 999px;
+    background: #ccfbf1;
+    color: #0f766e;
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.ghori-us-remove {
+    position: absolute;
+    top: 0;
+    right: 0;
+    z-index: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.25rem;
+    height: 1.25rem;
+    margin: 0;
+    padding: 0;
+    border: none;
+    background: transparent;
+    line-height: 1;
+    color: #94a3b8;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+
+    &:hover,
+    &:focus {
+        color: #64748b;
+        background: transparent;
+    }
+}
+
+.ghori-us-card:hover .ghori-us-remove,
+.ghori-us-card.is-selected .ghori-us-remove {
+    opacity: 1;
+}
+
+.ghori-us-form {
+    display: grid;
+    gap: 0.55rem;
+    max-width: 420px;
+    margin: 1rem auto 0;
+
+    label {
+        margin-bottom: 0;
+        font-weight: 600;
+        color: #334155;
+    }
+}
+
+.ghori-us-remember {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 500 !important;
+}
+
+.ghori-us-form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+}
+
+.ghori-us-error {
+    margin-top: 1rem;
+    padding: 0.65rem 0.85rem;
+    border-radius: 0.65rem;
+    background: #fef2f2;
+    color: #b91c1c;
+    text-align: center;
+    font-size: 0.88rem;
+}
+
+.ghori-us-success {
+    margin-top: 1rem;
+    padding: 0.65rem 0.85rem;
+    border-radius: 0.65rem;
+    background: #ecfdf5;
+    color: #047857;
+    text-align: center;
+    font-size: 0.88rem;
+    font-weight: 600;
+}
+
+.ghori-us-hints {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.65rem 1rem;
+    justify-content: center;
+    width: 100%;
+    margin-top: 1.5rem;
+    color: #94a3b8;
+    font-size: 0.75rem;
+    text-align: center;
+
+    > span {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.2rem;
+    }
+
+    kbd {
+        display: inline-block;
+        margin: 0 0.12rem;
+        padding: 0.1rem 0.35rem;
+        border-radius: 0.3rem;
+        border: 1px solid #cbd5e1;
+        background: #f8fafc;
+        color: #475569;
+        font-size: 0.72rem;
+        font-family: inherit;
+    }
+}

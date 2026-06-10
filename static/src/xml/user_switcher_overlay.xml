@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <t t-name="ghori_user_switcher.UserSwitcherOverlay">
+        <t t-if="us.isOpen">
+            <div class="ghori-us-overlay"
+                 role="dialog"
+                 aria-modal="true"
+                 aria-label="Switch account"
+                 t-ref="overlay"
+                 t-on-click="onBackdropClick">
+                <div class="ghori-us-panel" tabindex="-1" t-ref="panel" t-on-click.stop="">
+                    <t t-if="us.mode === 'picker'">
+                        <div class="ghori-us-title">Switch account</div>
+                        <div class="ghori-us-subtitle">Use arrow keys to browse, Enter to sign in</div>
+                        <div class="ghori-us-carousel" t-ref="carousel">
+                            <div class="ghori-us-carousel-track">
+                                <t t-foreach="cards" t-as="card" t-key="card.id">
+                                    <div t-att-class="cardClass(card_index)"
+                                         t-att-data-index="card_index"
+                                         t-on-click="() => this.onCardClick(card_index)">
+                                        <div class="ghori-us-card-header">
+                                            <t t-if="!card.isCurrent">
+                                                <button type="button"
+                                                        class="ghori-us-remove"
+                                                        title="Remove saved account"
+                                                        t-on-click="(ev) => this.onRemoveAccount(card.id, ev)">
+                                                    <i class="fa fa-times"/>
+                                                </button>
+                                            </t>
+                                        </div>
+                                        <div class="ghori-us-card-body">
+                                            <div class="ghori-us-avatar" t-att-style="'background-color:' + card.color">
+                                                <span class="ghori-us-avatar-text" t-esc="initials(card.label, card.login)"/>
+                                            </div>
+                                            <div class="ghori-us-card-label" t-esc="card.label"/>
+                                            <div class="ghori-us-card-login" t-esc="card.login"/>
+                                            <t t-if="card.isCurrent">
+                                                <span class="ghori-us-badge">Active</span>
+                                            </t>
+                                        </div>
+                                    </div>
+                                </t>
+                                <button type="button" class="ghori-us-card ghori-us-add" t-on-click="onAddClick">
+                                    <i class="fa fa-plus fa-2x"/>
+                                    <span>Add account</span>
+                                </button>
+                            </div>
+                        </div>
+                    </t>
+
+                    <t t-if="us.mode === 'add'">
+                        <div class="ghori-us-title">Add account</div>
+                        <div class="ghori-us-form">
+                            <label>Display name</label>
+                            <input type="text" class="o_input" placeholder="e.g. Warehouse admin"
+                                   t-model="state.draftLabel"/>
+                            <label>Login <span class="text-danger">*</span></label>
+                            <input type="text" class="o_input" placeholder="email or username" autocomplete="username"
+                                   t-model="state.draftLogin"/>
+                            <label>Password</label>
+                            <input type="password" class="o_input" placeholder="Optional if you enter each time"
+                                   autocomplete="new-password" t-model="state.draftPassword"/>
+                            <label class="ghori-us-remember">
+                                <input type="checkbox" t-model="state.draftRemember"/>
+                                Remember password on this browser
+                            </label>
+                            <div class="ghori-us-form-actions">
+                                <button type="button" class="btn btn-secondary"
+                                        t-on-click="onCancelForm">Cancel</button>
+                                <button type="button" class="btn btn-primary" t-on-click="onSaveAccount">Save</button>
+                            </div>
+                        </div>
+                    </t>
+
+                    <t t-if="us.mode === 'password'">
+                        <div class="ghori-us-title">Enter password</div>
+                        <div class="ghori-us-form">
+                            <label>Password for selected account</label>
+                            <input type="password" class="o_input" autocomplete="current-password"
+                                   t-ref="passwordInput"
+                                   t-att-value="switcher.state.passwordValue"
+                                   t-on-input="onPasswordInput"
+                                   t-on-keydown="onPasswordKeydown"/>
+                            <div class="ghori-us-form-actions">
+                                <button type="button" class="btn btn-secondary"
+                                        t-on-click="onCancelForm">Back</button>
+                                <button type="button" class="btn btn-primary"
+                                        t-att-disabled="switcher.state.loading"
+                                        t-on-click="onPasswordConfirm">
+                                    <t t-if="switcher.state.loading">Switching…</t>
+                                    <t t-else="">Switch</t>
+                                </button>
+                            </div>
+                        </div>
+                    </t>
+
+                    <t t-if="us.successMessage">
+                        <div class="ghori-us-success" t-esc="us.successMessage"/>
+                    </t>
+
+                    <t t-if="us.error">
+                        <div class="ghori-us-error" t-esc="us.error"/>
+                    </t>
+
+                    <div class="ghori-us-hints">
+                        <span><kbd>⌘⇧U</kbd> / <kbd>Ctrl⇧U</kbd> or <kbd>⌃⌥U</kbd> open</span>
+                        <span><kbd>←</kbd><kbd>→</kbd> browse</span>
+                        <span><kbd>Enter</kbd> switch</span>
+                        <span><kbd>Esc</kbd> close</span>
+                        <span><kbd>N</kbd> new account</span>
+                    </div>
+                </div>
+            </div>
+        </t>
+    </t>
+
+</templates>
