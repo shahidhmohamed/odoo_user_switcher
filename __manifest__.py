@@ -3,7 +3,7 @@
     "name": "Ghori User Switcher",
     "summary": "Fast account switcher overlay (keyboard shortcut, saved logins)",
     "category": "Customizations",
-    "version": "18.0.1.0.14",
+    "version": "18.0.1.0.23",
     "license": "LGPL-3",
     "author": "Ghori",
     "installable": True,

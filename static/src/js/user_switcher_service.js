@@ -6,6 +6,7 @@ import { rpc } from "@web/core/network/rpc";
 import { browser } from "@web/core/browser/browser";
 import { getActiveHotkey } from "@web/core/hotkeys/hotkey_service";
 import { session } from "@web/session";
+import { getLastConnectedUsers, user } from "@web/core/user";
 import { _t } from "@web/core/l10n/translation";
 
 const OPEN_HOTKEYS = new Set(["control+shift+u", "control+alt+u"]);
@@ -75,6 +76,81 @@ function decodeSecret(value) {
     }
 }
 
+function normalizeLogin(login) {
+    return (login || "").trim().toLowerCase();
+}
+
+function loginsMatch(a, b) {
+    const left = normalizeLogin(a);
+    const right = normalizeLogin(b);
+    return Boolean(left) && left === right;
+}
+
+function currentLogin() {
+    return user.login || "";
+}
+
+function lastConnectedByLogin() {
+    const map = new Map();
+    for (const entry of getLastConnectedUsers()) {
+        if (entry?.login) {
+            map.set(normalizeLogin(entry.login), entry);
+        }
+    }
+    return map;
+}
+
+function enrichAccountAvatar(account) {
+    let partnerId = account.partnerId;
+    let partnerWriteDate = account.partnerWriteDate;
+
+    if (loginsMatch(account.login, currentLogin())) {
+        partnerId = user.partnerId;
+        partnerWriteDate = user.writeDate;
+    } else {
+        const match = lastConnectedByLogin().get(normalizeLogin(account.login));
+        if (match?.partnerId) {
+            partnerId = match.partnerId;
+            partnerWriteDate = match.partnerWriteDate;
+        }
+    }
+
+    return {
+        ...account,
+        label:
+            account.label ||
+            (loginsMatch(account.login, currentLogin()) ? user.name : account.label),
+        partnerId,
+        partnerWriteDate,
+    };
+}
+
+function persistAvatarMetadata(displayAccounts) {
+    const saved = loadAccounts();
+    let changed = false;
+    const updated = saved.map((account) => {
+        const enriched = displayAccounts.find((a) => a.id === account.id);
+        if (!enriched?.partnerId) {
+            return account;
+        }
+        if (
+            account.partnerId !== enriched.partnerId ||
+            account.partnerWriteDate !== enriched.partnerWriteDate
+        ) {
+            changed = true;
+            return {
+                ...account,
+                partnerId: enriched.partnerId,
+                partnerWriteDate: enriched.partnerWriteDate,
+            };
+        }
+        return account;
+    });
+    if (changed) {
+        saveAccounts(updated);
+    }
+}
+
 const FOCUSABLE_SELECTOR =
     'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
@@ -131,7 +207,10 @@ export const userSwitcherState = reactive({
     isOpen: false,
     mode: "picker",
     selectedIndex: 0,
+    /** Saved accounts only (localStorage). */
     accounts: [],
+    /** Carousel order: logged-in user first, then other saved accounts. */
+    displayAccounts: [],
     loading: false,
     passwordAccountId: null,
     passwordValue: "",
@@ -179,11 +258,26 @@ export const userSwitcherService = {
             document.body.classList.remove("ghori-us-open");
         };
 
-        const reloadAccounts = () => {
-            userSwitcherState.accounts = loadAccounts().map((account) => ({
+        const rebuildDisplayList = () => {
+            const saved = loadAccounts().map((account) => ({
                 ...account,
                 color: account.color || colorFromLogin(account.login),
             }));
+            userSwitcherState.accounts = saved;
+
+            const login = currentLogin();
+            const savedIdx = saved.findIndex((a) => loginsMatch(a.login, login));
+            let ordered;
+            if (savedIdx >= 0) {
+                ordered = [saved[savedIdx], ...saved.filter((_, i) => i !== savedIdx)];
+                userSwitcherState.selectedIndex = 0;
+            } else {
+                ordered = saved;
+                userSwitcherState.selectedIndex = 0;
+            }
+            const displayAccounts = ordered.map(enrichAccountAvatar);
+            userSwitcherState.displayAccounts = displayAccounts;
+            persistAvatarMetadata(displayAccounts);
         };
 
         const close = () => {
@@ -206,10 +300,9 @@ export const userSwitcherService = {
             if (document.activeElement instanceof HTMLElement) {
                 document.activeElement.blur();
             }
-            reloadAccounts();
+            rebuildDisplayList();
             userSwitcherState.isOpen = true;
             userSwitcherState.mode = "picker";
-            userSwitcherState.selectedIndex = 0;
             userSwitcherState.error = "";
             userSwitcherState.successMessage = "";
             lockBackground();
@@ -224,14 +317,7 @@ export const userSwitcherService = {
             }, 2500);
         };
 
-        const currentSession = () => ({
-            id: "__current__",
-            label: session.name || session.username || _t("Current user"),
-            login: session.username,
-            db: session.db,
-            isCurrent: true,
-            color: colorFromLogin(session.username),
-        });
+        const isSessionAccount = (account) => loginsMatch(account?.login, currentLogin());
 
         const addAccount = ({ label, login, password, remember }) => {
             const trimmedLogin = (login || "").trim();
@@ -250,9 +336,10 @@ export const userSwitcherService = {
             };
             accounts.push(entry);
             saveAccounts(accounts);
-            reloadAccounts();
+            rebuildDisplayList();
             userSwitcherState.mode = "picker";
-            userSwitcherState.selectedIndex = Math.max(0, userSwitcherState.accounts.length - 1);
+            const newIdx = userSwitcherState.displayAccounts.findIndex((a) => a.id === entry.id);
+            userSwitcherState.selectedIndex = newIdx >= 0 ? newIdx : 0;
             userSwitcherState.error = "";
             showSuccess(_t("Account saved."));
         };
@@ -260,13 +347,7 @@ export const userSwitcherService = {
         const removeAccount = (accountId) => {
             const accounts = loadAccounts().filter((a) => a.id !== accountId);
             saveAccounts(accounts);
-            reloadAccounts();
-            if (userSwitcherState.selectedIndex >= userSwitcherState.accounts.length) {
-                userSwitcherState.selectedIndex = Math.max(
-                    0,
-                    userSwitcherState.accounts.length - 1
-                );
-            }
+            rebuildDisplayList();
             userSwitcherState.error = "";
             showSuccess(_t("Account removed."));
         };
@@ -312,7 +393,7 @@ export const userSwitcherService = {
         };
 
         const switchToAccount = async (account, passwordOverride) => {
-            if (!account || account.isCurrent) {
+            if (!account || isSessionAccount(account)) {
                 close();
                 return;
             }
@@ -344,7 +425,7 @@ export const userSwitcherService = {
         };
 
         const selectRelative = (delta) => {
-            const total = userSwitcherState.accounts.length + 1;
+            const total = userSwitcherState.displayAccounts.length;
             if (!total) {
                 return;
             }
@@ -358,12 +439,8 @@ export const userSwitcherService = {
             userSwitcherState.selectedIndex = idx;
         };
 
-        const selectedEntry = () => {
-            if (userSwitcherState.selectedIndex === 0) {
-                return currentSession();
-            }
-            return userSwitcherState.accounts[userSwitcherState.selectedIndex - 1] || null;
-        };
+        const selectedEntry = () =>
+            userSwitcherState.displayAccounts[userSwitcherState.selectedIndex] || null;
 
         const onOpenShortcut = (ev) => {
             if (userSwitcherState.isOpen) {
@@ -482,8 +559,8 @@ export const userSwitcherService = {
             state: userSwitcherState,
             open,
             close,
-            reloadAccounts,
-            currentSession,
+            rebuildDisplayList,
+            isSessionAccount,
             addAccount,
             removeAccount,
             switchToAccount,

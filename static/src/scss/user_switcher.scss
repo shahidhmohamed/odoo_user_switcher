@@ -99,13 +99,15 @@ body.ghori-us-open {
     position: relative;
     display: flex;
     flex-direction: column;
-    align-items: stretch;
-    justify-content: flex-start;
+    align-items: center;
+    justify-content: center;
     flex: 0 0 152px;
     width: 152px;
+    min-width: 152px;
     height: 184px;
-    padding: 0.5rem 0.75rem 1rem;
+    padding: 0.75rem;
     box-sizing: border-box;
+    overflow: hidden;
     border: 2px solid rgba(148, 163, 184, 0.35);
     border-radius: 1rem;
     background: #fff;
@@ -161,31 +163,68 @@ body.ghori-us-open {
 }
 
 .ghori-us-card-header {
-    position: relative;
-    flex: 0 0 1.25rem;
-    width: 100%;
+    position: absolute;
+    top: 0.35rem;
+    right: 0.35rem;
+    z-index: 2;
+    width: 1.25rem;
+    height: 1.25rem;
+    pointer-events: none;
+
+    .ghori-us-remove {
+        pointer-events: auto;
+    }
 }
 
 .ghori-us-card-body {
     display: flex;
+    flex: 1 1 auto;
     flex-direction: column;
     align-items: center;
-    justify-content: flex-start;
+    justify-content: center;
     width: 100%;
-    margin: 0 auto;
+    min-width: 0;
+    max-width: 100%;
+    margin: 0;
+    padding: 0.15rem 0 0;
+    overflow: hidden;
+    gap: 0.6rem;
+}
+
+.ghori-us-avatar-wrap {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    flex-shrink: 0;
 }
 
 .ghori-us-avatar {
     width: 56px;
     height: 56px;
-    margin: 0 0 0.75rem;
+    margin: 0;
     border-radius: 50%;
-    display: grid;
-    place-items: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     color: #fff;
     font-weight: 700;
     box-shadow: 0 4px 10px rgba(15, 23, 42, 0.16);
     flex-shrink: 0;
+    background-repeat: no-repeat;
+
+    &.ghori-us-avatar--image {
+        overflow: hidden;
+        padding: 0;
+        background-color: #e2e8f0;
+    }
+}
+
+.ghori-us-card-text {
+    width: 100%;
+    min-width: 0;
+    overflow: hidden;
+    text-align: center;
 }
 
 .ghori-us-avatar-text {
@@ -199,6 +238,8 @@ body.ghori-us-open {
 
 .ghori-us-card-label {
     width: 100%;
+    min-width: 0;
+    max-width: 100%;
     font-weight: 600;
     color: #0f172a;
     font-size: 0.92rem;
@@ -210,7 +251,9 @@ body.ghori-us-open {
 
 .ghori-us-card-login {
     width: 100%;
-    margin-top: 0.25rem;
+    min-width: 0;
+    max-width: 100%;
+    margin-top: 0.15rem;
     font-size: 0.78rem;
     color: #64748b;
     overflow: hidden;

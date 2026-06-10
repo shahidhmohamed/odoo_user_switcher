@@ -3,6 +3,7 @@
 import { Component, useEffect, useRef, useState } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
 import { browser } from "@web/core/browser/browser";
+import { imageUrl } from "@web/core/utils/urls";
 import { userSwitcherState } from "./user_switcher_service";
 
 export class UserSwitcherOverlay extends Component {
@@ -46,7 +47,7 @@ export class UserSwitcherOverlay extends Component {
     }
 
     get cards() {
-        return [this.switcher.currentSession(), ...this.us.accounts];
+        return this.us.displayAccounts;
     }
 
     get selectedIndex() {
@@ -103,7 +104,7 @@ export class UserSwitcherOverlay extends Component {
         this.switcher.state.selectedIndex = index;
         this.scrollSelectedIntoView();
         const entry = this.cards[index];
-        if (entry && !entry.isCurrent) {
+        if (entry && !this.switcher.isSessionAccount(entry)) {
             this.switcher.switchToAccount(entry);
         }
     }
@@ -148,6 +149,26 @@ export class UserSwitcherOverlay extends Component {
             ev.preventDefault();
             this.onPasswordConfirm();
         }
+    }
+
+    avatarUrl(card) {
+        if (!card?.partnerId) {
+            return "";
+        }
+        return imageUrl("res.partner", card.partnerId, "avatar_128", {
+            unique: card.partnerWriteDate,
+            width: 128,
+            height: 128,
+        });
+    }
+
+    avatarStyle(card) {
+        const url = this.avatarUrl(card);
+        if (url) {
+            const safeUrl = url.replace(/"/g, '\\"');
+            return `background-image:url("${safeUrl}");background-size:cover;background-position:center center;background-color:#e2e8f0;`;
+        }
+        return `background-color:${card.color || "#94a3b8"};`;
     }
 
     initials(label, login) {

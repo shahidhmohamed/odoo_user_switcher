@@ -20,24 +20,29 @@
                                          t-att-data-index="card_index"
                                          t-on-click="() => this.onCardClick(card_index)">
                                         <div class="ghori-us-card-header">
-                                            <t t-if="!card.isCurrent">
-                                                <button type="button"
-                                                        class="ghori-us-remove"
-                                                        title="Remove saved account"
-                                                        t-on-click="(ev) => this.onRemoveAccount(card.id, ev)">
-                                                    <i class="fa fa-times"/>
-                                                </button>
-                                            </t>
+                                            <button type="button"
+                                                    class="ghori-us-remove"
+                                                    title="Remove saved account"
+                                                    t-on-click="(ev) => this.onRemoveAccount(card.id, ev)">
+                                                <i class="fa fa-times"/>
+                                            </button>
                                         </div>
                                         <div class="ghori-us-card-body">
-                                            <div class="ghori-us-avatar" t-att-style="'background-color:' + card.color">
-                                                <span class="ghori-us-avatar-text" t-esc="initials(card.label, card.login)"/>
+                                            <div class="ghori-us-avatar-wrap">
+                                                <div class="ghori-us-avatar"
+                                                     t-att-class="{'ghori-us-avatar--image': avatarUrl(card)}"
+                                                     t-att-style="avatarStyle(card)"
+                                                     t-att-title="card.label"
+                                                     role="img"
+                                                     t-att-aria-label="card.label">
+                                                    <span t-if="!avatarUrl(card)" class="ghori-us-avatar-text"
+                                                          t-esc="initials(card.label, card.login)"/>
+                                                </div>
                                             </div>
-                                            <div class="ghori-us-card-label" t-esc="card.label"/>
-                                            <div class="ghori-us-card-login" t-esc="card.login"/>
-                                            <t t-if="card.isCurrent">
-                                                <span class="ghori-us-badge">Active</span>
-                                            </t>
+                                            <div class="ghori-us-card-text">
+                                                <div class="ghori-us-card-label" t-esc="card.label"/>
+                                                <div class="ghori-us-card-login" t-esc="card.login"/>
+                                            </div>
                                         </div>
                                     </div>
                                 </t>
