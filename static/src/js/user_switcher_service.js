@@ -213,6 +213,7 @@ export const userSwitcherState = reactive({
     displayAccounts: [],
     loading: false,
     passwordAccountId: null,
+    editAccountId: null,
     passwordValue: "",
     error: "",
     successMessage: "",
@@ -285,6 +286,7 @@ export const userSwitcherService = {
             userSwitcherState.mode = "picker";
             userSwitcherState.loading = false;
             userSwitcherState.passwordAccountId = null;
+            userSwitcherState.editAccountId = null;
             userSwitcherState.passwordValue = "";
             userSwitcherState.error = "";
             userSwitcherState.successMessage = "";
@@ -325,6 +327,9 @@ export const userSwitcherService = {
                 throw new Error(_t("Login is required."));
             }
             const accounts = loadAccounts();
+            if (accounts.some((a) => loginsMatch(a.login, trimmedLogin))) {
+                throw new Error(_t("An account with this login already exists."));
+            }
             const entry = {
                 id: uuid(),
                 label: (label || "").trim() || trimmedLogin,
@@ -342,6 +347,47 @@ export const userSwitcherService = {
             userSwitcherState.selectedIndex = newIdx >= 0 ? newIdx : 0;
             userSwitcherState.error = "";
             showSuccess(_t("Account saved."));
+        };
+
+        const updateAccount = (accountId, { label, login, password, remember }) => {
+            const trimmedLogin = (login || "").trim();
+            if (!trimmedLogin) {
+                throw new Error(_t("Login is required."));
+            }
+            const accounts = loadAccounts();
+            const idx = accounts.findIndex((a) => a.id === accountId);
+            if (idx < 0) {
+                throw new Error(_t("Account not found."));
+            }
+            if (accounts.some((a) => a.id !== accountId && loginsMatch(a.login, trimmedLogin))) {
+                throw new Error(_t("An account with this login already exists."));
+            }
+            const existing = accounts[idx];
+            let passwordEnc = existing.passwordEnc || "";
+            if (remember) {
+                if (password) {
+                    passwordEnc = encodeSecret(password);
+                }
+            } else {
+                passwordEnc = "";
+            }
+            accounts[idx] = {
+                ...existing,
+                label: (label || "").trim() || trimmedLogin,
+                login: trimmedLogin,
+                db: session.db,
+                color: colorFromLogin(trimmedLogin),
+                rememberPassword: Boolean(remember),
+                passwordEnc: remember ? passwordEnc : "",
+            };
+            saveAccounts(accounts);
+            rebuildDisplayList();
+            userSwitcherState.mode = "picker";
+            userSwitcherState.editAccountId = null;
+            const newIdx = userSwitcherState.displayAccounts.findIndex((a) => a.id === accountId);
+            userSwitcherState.selectedIndex = newIdx >= 0 ? newIdx : 0;
+            userSwitcherState.error = "";
+            showSuccess(_t("Account updated."));
         };
 
         const removeAccount = (accountId) => {
@@ -362,10 +408,23 @@ export const userSwitcherService = {
             return "";
         };
 
+        const validateCredentials = async (account, password) => {
+            const result = await rpc("/ghori_user_switcher/validate_credentials", {
+                login: account.login,
+                password,
+                db: account.db || session.db,
+            });
+            return Boolean(result?.ok);
+        };
+
         const authenticateAs = async (account, password) => {
             userSwitcherState.loading = true;
             userSwitcherState.error = "";
             try {
+                const valid = await validateCredentials(account, password);
+                if (!valid) {
+                    throw new Error(_t("Authentication failed. Check login and password."));
+                }
                 await rpc("/web/session/destroy", {});
                 const result = await rpc("/web/session/authenticate", {
                     db: account.db || session.db,
@@ -373,7 +432,8 @@ export const userSwitcherService = {
                     password,
                 });
                 if (!result?.uid) {
-                    throw new Error(_t("Authentication failed. Check login and password."));
+                    browser.location.assign("/web/login");
+                    return false;
                 }
                 close();
                 browser.sessionStorage.setItem(JUST_SWITCHED_KEY, "1");
@@ -386,6 +446,9 @@ export const userSwitcherService = {
                     _t("Could not switch account. Try again.");
                 userSwitcherState.error = message;
                 notification.add(message, { type: "danger" });
+                rebuildDisplayList();
+                userSwitcherState.mode = "picker";
+                userSwitcherState.passwordAccountId = null;
                 return false;
             } finally {
                 userSwitcherState.loading = false;
@@ -469,6 +532,7 @@ export const userSwitcherService = {
                 stopKey(ev);
                 if (userSwitcherState.mode !== "picker") {
                     userSwitcherState.mode = "picker";
+                    userSwitcherState.editAccountId = null;
                     userSwitcherState.error = "";
                 } else {
                     close();
@@ -478,7 +542,7 @@ export const userSwitcherService = {
 
             const overlay = getOverlayRoot();
 
-            if (userSwitcherState.mode === "add" || userSwitcherState.mode === "password") {
+            if (userSwitcherState.mode === "add" || userSwitcherState.mode === "edit" || userSwitcherState.mode === "password") {
                 if (ev.key === "Tab") {
                     cycleTabInOverlay(ev, overlay);
                     return;
@@ -515,7 +579,16 @@ export const userSwitcherService = {
             } else if (ev.key === "n" || ev.key === "N" || ev.key === "+") {
                 stopKey(ev);
                 userSwitcherState.mode = "add";
+                userSwitcherState.editAccountId = null;
                 userSwitcherState.error = "";
+            } else if (ev.key === "e" || ev.key === "E") {
+                stopKey(ev);
+                const entry = selectedEntry();
+                if (entry) {
+                    userSwitcherState.mode = "edit";
+                    userSwitcherState.editAccountId = entry.id;
+                    userSwitcherState.error = "";
+                }
             }
         };
 
@@ -537,6 +610,7 @@ export const userSwitcherService = {
                 }
                 if (
                     userSwitcherState.mode === "add" ||
+                    userSwitcherState.mode === "edit" ||
                     userSwitcherState.mode === "password"
                 ) {
                     focusFirstInOverlay(currentOverlay);
@@ -562,6 +636,7 @@ export const userSwitcherService = {
             rebuildDisplayList,
             isSessionAccount,
             addAccount,
+            updateAccount,
             removeAccount,
             switchToAccount,
             confirmPasswordSwitch,

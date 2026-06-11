@@ -21,6 +21,12 @@
                                          t-on-click="() => this.onCardClick(card_index)">
                                         <div class="ghori-us-card-header">
                                             <button type="button"
+                                                    class="ghori-us-edit"
+                                                    title="Edit saved account"
+                                                    t-on-click="(ev) => this.onEditClick(card.id, ev)">
+                                                <i class="fa fa-pencil"/>
+                                            </button>
+                                            <button type="button"
                                                     class="ghori-us-remove"
                                                     title="Remove saved account"
                                                     t-on-click="(ev) => this.onRemoveAccount(card.id, ev)">
@@ -78,6 +84,31 @@
                         </div>
                     </t>
 
+                    <t t-if="us.mode === 'edit'">
+                        <div class="ghori-us-title">Edit account</div>
+                        <div class="ghori-us-form">
+                            <label>Display name</label>
+                            <input type="text" class="o_input" placeholder="e.g. Warehouse admin"
+                                   t-model="state.draftLabel"/>
+                            <label>Login <span class="text-danger">*</span></label>
+                            <input type="text" class="o_input" placeholder="email or username" autocomplete="username"
+                                   t-model="state.draftLogin"/>
+                            <label>Password</label>
+                            <input type="password" class="o_input"
+                                   placeholder="Leave blank to keep saved password"
+                                   autocomplete="new-password" t-model="state.draftPassword"/>
+                            <label class="ghori-us-remember">
+                                <input type="checkbox" t-model="state.draftRemember"/>
+                                Remember password on this browser
+                            </label>
+                            <div class="ghori-us-form-actions">
+                                <button type="button" class="btn btn-secondary"
+                                        t-on-click="onCancelForm">Cancel</button>
+                                <button type="button" class="btn btn-primary" t-on-click="onUpdateAccount">Save</button>
+                            </div>
+                        </div>
+                    </t>
+
                     <t t-if="us.mode === 'password'">
                         <div class="ghori-us-title">Enter password</div>
                         <div class="ghori-us-form">
@@ -114,6 +145,7 @@
                         <span><kbd>Enter</kbd> switch</span>
                         <span><kbd>Esc</kbd> close</span>
                         <span><kbd>N</kbd> new account</span>
+                        <span><kbd>E</kbd> edit account</span>
                     </div>
                 </div>
             </div>

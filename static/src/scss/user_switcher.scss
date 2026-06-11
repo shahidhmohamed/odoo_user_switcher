@@ -167,10 +167,11 @@ body.ghori-us-open {
     top: 0.35rem;
     right: 0.35rem;
     z-index: 2;
-    width: 1.25rem;
-    height: 1.25rem;
+    display: flex;
+    gap: 0.15rem;
     pointer-events: none;
 
+    .ghori-us-edit,
     .ghori-us-remove {
         pointer-events: auto;
     }
@@ -274,10 +275,11 @@ body.ghori-us-open {
     letter-spacing: 0.04em;
 }
 
+.ghori-us-edit,
 .ghori-us-remove {
-    position: absolute;
-    top: 0;
-    right: 0;
+    position: relative;
+    top: auto;
+    right: auto;
     z-index: 1;
     display: inline-flex;
     align-items: center;
@@ -300,7 +302,9 @@ body.ghori-us-open {
     }
 }
 
+.ghori-us-card:hover .ghori-us-edit,
 .ghori-us-card:hover .ghori-us-remove,
+.ghori-us-card.is-selected .ghori-us-edit,
 .ghori-us-card.is-selected .ghori-us-remove {
     opacity: 1;
 }

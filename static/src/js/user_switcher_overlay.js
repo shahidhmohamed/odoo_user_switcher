@@ -42,7 +42,24 @@ export class UserSwitcherOverlay extends Component {
                     this.scrollSelectedIntoView();
                 });
             },
-            () => [this.us.isOpen, this.us.selectedIndex, this.us.mode]
+            () => [this.us.isOpen, this.us.selectedIndex, this.us.mode, this.us.editAccountId]
+        );
+
+        useEffect(
+            () => {
+                if (this.us.mode !== "edit" || !this.us.editAccountId) {
+                    return;
+                }
+                const account = this.us.accounts.find((a) => a.id === this.us.editAccountId);
+                if (!account) {
+                    return;
+                }
+                this.state.draftLabel = account.label || "";
+                this.state.draftLogin = account.login || "";
+                this.state.draftPassword = "";
+                this.state.draftRemember = Boolean(account.rememberPassword);
+            },
+            () => [this.us.mode, this.us.editAccountId]
         );
     }
 
@@ -59,7 +76,7 @@ export class UserSwitcherOverlay extends Component {
             this.passwordInputRef.el?.focus({ preventScroll: true });
             return;
         }
-        if (this.us.mode === "add") {
+        if (this.us.mode === "add" || this.us.mode === "edit") {
             const input = this.panelRef.el?.querySelector("input.o_input");
             input?.focus({ preventScroll: true });
             return;
@@ -91,6 +108,7 @@ export class UserSwitcherOverlay extends Component {
 
     onCancelForm() {
         this.switcher.state.mode = "picker";
+        this.switcher.state.editAccountId = null;
         this.switcher.state.error = "";
     }
 
@@ -111,6 +129,7 @@ export class UserSwitcherOverlay extends Component {
 
     onAddClick() {
         this.switcher.state.mode = "add";
+        this.switcher.state.editAccountId = null;
         this.switcher.state.error = "";
         this.state.draftLabel = "";
         this.state.draftLogin = "";
@@ -118,9 +137,29 @@ export class UserSwitcherOverlay extends Component {
         this.state.draftRemember = false;
     }
 
+    onEditClick(accountId, ev) {
+        ev.stopPropagation();
+        this.switcher.state.mode = "edit";
+        this.switcher.state.editAccountId = accountId;
+        this.switcher.state.error = "";
+    }
+
     onSaveAccount() {
         try {
             this.switcher.addAccount({
+                label: this.state.draftLabel,
+                login: this.state.draftLogin,
+                password: this.state.draftPassword,
+                remember: this.state.draftRemember,
+            });
+        } catch (error) {
+            this.switcher.state.error = error.message;
+        }
+    }
+
+    onUpdateAccount() {
+        try {
+            this.switcher.updateAccount(this.us.editAccountId, {
                 label: this.state.draftLabel,
                 login: this.state.draftLogin,
                 password: this.state.draftPassword,
