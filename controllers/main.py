@@ -21,13 +21,20 @@ class GhoriUserSwitcherController(http.Controller):
             return {"ok": False}
 
         target_db = db or request.db
-        if target_db and target_db != request.db:
+        if not target_db or target_db != request.db:
             return {"ok": False}
 
         credential = {"login": login, "password": password, "type": "password"}
+        wsgienv = {
+            "interactive": True,
+            "base_location": request.httprequest.url_root.rstrip("/"),
+            "HTTP_HOST": request.httprequest.environ.get("HTTP_HOST", ""),
+            "REMOTE_ADDR": request.httprequest.environ.get("REMOTE_ADDR", ""),
+        }
         try:
-            auth_info = request.env["res.users"].sudo().authenticate(
-                credential, {"interactive": False}
+            # Odoo 18: authenticate(db, credential, user_agent_env) — classmethod.
+            auth_info = request.env["res.users"].authenticate(
+                target_db, credential, wsgienv
             )
             return {"ok": bool(auth_info.get("uid"))}
         except AccessDenied:

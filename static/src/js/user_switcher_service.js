@@ -408,32 +408,19 @@ export const userSwitcherService = {
             return "";
         };
 
-        const validateCredentials = async (account, password) => {
-            const result = await rpc("/ghori_user_switcher/validate_credentials", {
-                login: account.login,
-                password,
-                db: account.db || session.db,
-            });
-            return Boolean(result?.ok);
-        };
-
         const authenticateAs = async (account, password) => {
             userSwitcherState.loading = true;
             userSwitcherState.error = "";
             try {
-                const valid = await validateCredentials(account, password);
-                if (!valid) {
-                    throw new Error(_t("Authentication failed. Check login and password."));
-                }
-                await rpc("/web/session/destroy", {});
+                // Authenticate in-place (no /web/session/destroy first). On failure
+                // Odoo raises AccessDenied and the current session stays intact.
                 const result = await rpc("/web/session/authenticate", {
                     db: account.db || session.db,
                     login: account.login,
                     password,
                 });
                 if (!result?.uid) {
-                    browser.location.assign("/web/login");
-                    return false;
+                    throw new Error(_t("Authentication failed. Check login and password."));
                 }
                 close();
                 browser.sessionStorage.setItem(JUST_SWITCHED_KEY, "1");
