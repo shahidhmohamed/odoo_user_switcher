@@ -13,6 +13,64 @@ const OPEN_HOTKEYS = new Set(["control+shift+u", "control+alt+u"]);
 const JUST_SWITCHED_KEY = "ghori_us_just_switched";
 
 const STORAGE_KEY = "ghori_user_switcher_accounts_v1";
+const HISTORY_KEY = "ghori_user_switcher_history_v1";
+
+function loadSwitchHistory() {
+    try {
+        const raw = browser.localStorage.getItem(HISTORY_KEY);
+        const parsed = raw ? JSON.parse(raw) : [];
+        return Array.isArray(parsed) ? parsed : [];
+    } catch {
+        return [];
+    }
+}
+
+function saveSwitchHistory(logins) {
+    browser.localStorage.setItem(HISTORY_KEY, JSON.stringify(logins.slice(0, 25)));
+}
+
+function recordSwitchHistory(login) {
+    const key = normalizeLogin(login);
+    if (!key) {
+        return;
+    }
+    const next = [key, ...loadSwitchHistory().filter((entry) => entry !== key)];
+    saveSwitchHistory(next);
+}
+
+function switchHistoryRankByLogin() {
+    const rank = new Map();
+    let offset = 0;
+    for (const login of loadSwitchHistory()) {
+        const key = normalizeLogin(login);
+        if (key && !rank.has(key)) {
+            rank.set(key, offset++);
+        }
+    }
+    for (const entry of getLastConnectedUsers()) {
+        const key = normalizeLogin(entry?.login);
+        if (key && !rank.has(key)) {
+            rank.set(key, offset++);
+        }
+    }
+    return rank;
+}
+
+function sortAccountsBySwitchHistory(accounts) {
+    const rank = switchHistoryRankByLogin();
+    return [...accounts].sort((a, b) => {
+        const aKey = normalizeLogin(a.login);
+        const bKey = normalizeLogin(b.login);
+        const aRank = rank.has(aKey) ? rank.get(aKey) : Number.MAX_SAFE_INTEGER;
+        const bRank = rank.has(bKey) ? rank.get(bKey) : Number.MAX_SAFE_INTEGER;
+        if (aRank !== bRank) {
+            return aRank - bRank;
+        }
+        return (a.label || a.login || "").localeCompare(b.label || b.login || "", undefined, {
+            sensitivity: "base",
+        });
+    });
+}
 
 function uuid() {
     return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
@@ -209,7 +267,7 @@ export const userSwitcherState = reactive({
     selectedIndex: 0,
     /** Saved accounts only (localStorage). */
     accounts: [],
-    /** Carousel order: logged-in user first, then other saved accounts. */
+    /** Carousel order: current user first, then others by switch history (MRU). */
     displayAccounts: [],
     loading: false,
     passwordAccountId: null,
@@ -260,6 +318,14 @@ export const userSwitcherService = {
         };
 
         const rebuildDisplayList = () => {
+            if (!loadSwitchHistory().length) {
+                const seeded = getLastConnectedUsers()
+                    .map((entry) => normalizeLogin(entry?.login))
+                    .filter(Boolean);
+                if (seeded.length) {
+                    saveSwitchHistory(seeded);
+                }
+            }
             const saved = loadAccounts().map((account) => ({
                 ...account,
                 color: account.color || colorFromLogin(account.login),
@@ -270,10 +336,14 @@ export const userSwitcherService = {
             const savedIdx = saved.findIndex((a) => loginsMatch(a.login, login));
             let ordered;
             if (savedIdx >= 0) {
-                ordered = [saved[savedIdx], ...saved.filter((_, i) => i !== savedIdx)];
+                const current = saved[savedIdx];
+                const others = sortAccountsBySwitchHistory(
+                    saved.filter((_, i) => i !== savedIdx)
+                );
+                ordered = [current, ...others];
                 userSwitcherState.selectedIndex = 0;
             } else {
-                ordered = saved;
+                ordered = sortAccountsBySwitchHistory(saved);
                 userSwitcherState.selectedIndex = 0;
             }
             const displayAccounts = ordered.map(enrichAccountAvatar);
@@ -422,6 +492,7 @@ export const userSwitcherService = {
                 if (!result?.uid) {
                     throw new Error(_t("Authentication failed. Check login and password."));
                 }
+                recordSwitchHistory(account.login);
                 close();
                 browser.sessionStorage.setItem(JUST_SWITCHED_KEY, "1");
                 browser.location.assign("/odoo");

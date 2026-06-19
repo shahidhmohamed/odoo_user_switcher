@@ -6,12 +6,14 @@ import { useService } from "@web/core/utils/hooks";
 
 export class UserSwitcherSystray extends Component {
     static template = xml`
-        <button type="button"
-                class="o_switch_user_menu btn btn-link lh-1 px-2"
-                title="Switch account (⌘⇧U)"
-                t-on-click="onClick">
-            <i class="fa fa-users"/>
-        </button>`;
+        <div>
+            <button type="button"
+                    class="o_nav_entry"
+                    title="Switch account (⌘⇧U)"
+                    t-on-click="onClick">
+                <i class="fa fa-users ghori-us-systray-icon" role="img" aria-label="Switch account"/>
+            </button>
+        </div>`;
     static props = {};
 
     setup() {
