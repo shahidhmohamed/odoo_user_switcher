@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<odoo>
+    <!--
+        Only members of this group can use the account switcher and the
+        no-password "login as" switch. Membership is the security boundary:
+        a switcher user can impersonate other users without their password,
+        so the group should only contain trusted admins.
+    -->
+    <record id="group_ghori_user_switcher" model="res.groups">
+        <field name="name">Ghori User Switcher</field>
+        <field name="category_id" ref="base.module_category_administration"/>
+        <field name="comment">Users who may switch into other user accounts without entering a password. Grant only to trusted administrators.</field>
+        <field name="implied_ids" eval="[(4, ref('base.group_system'))]"/>
+    </record>
+</odoo>

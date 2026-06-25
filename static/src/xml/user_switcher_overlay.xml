@@ -11,15 +11,27 @@
                  t-on-click="onBackdropClick">
                 <div class="ghori-us-panel" tabindex="-1" t-ref="panel" t-on-click.stop="">
                     <t t-if="us.mode === 'picker'">
-                        <div class="ghori-us-title">Switch account</div>
-                        <div class="ghori-us-subtitle">Use arrow keys to browse, Enter to sign in</div>
+                        <div class="ghori-us-title">
+                            <t t-if="us.impersonating">Return to your account</t>
+                            <t t-else="">Switch account</t>
+                        </div>
+                        <div class="ghori-us-subtitle">
+                            <t t-if="us.impersonating">Press Enter to go back to your admin account</t>
+                            <t t-else="">Use arrow keys to browse, Enter to sign in</t>
+                        </div>
+                        <div t-if="us.impersonating" class="ghori-us-impersonating alert alert-warning">
+                            <span>
+                                You are signed in as another user. Select
+                                <strong>Return</strong> below (or press Enter) to go back.
+                            </span>
+                        </div>
                         <div class="ghori-us-carousel" t-ref="carousel">
                             <div class="ghori-us-carousel-track">
                                 <t t-foreach="cards" t-as="card" t-key="card.id">
-                                    <div t-att-class="cardClass(card_index)"
+                                    <div t-att-class="cardClass(card_index) + (card.isReturn ? ' ghori-us-card--return' : '')"
                                          t-att-data-index="card_index"
                                          t-on-click="() => this.onCardClick(card_index)">
-                                        <div class="ghori-us-card-header">
+                                        <div class="ghori-us-card-header" t-if="!card.isReturn and us.canManageAccounts">
                                             <button type="button"
                                                     class="ghori-us-edit"
                                                     title="Edit saved account"
@@ -36,12 +48,13 @@
                                         <div class="ghori-us-card-body">
                                             <div class="ghori-us-avatar-wrap">
                                                 <div class="ghori-us-avatar"
-                                                     t-att-class="{'ghori-us-avatar--image': avatarUrl(card)}"
+                                                     t-att-class="{'ghori-us-avatar--image': !card.isReturn and avatarUrl(card)}"
                                                      t-att-style="avatarStyle(card)"
                                                      t-att-title="card.label"
                                                      role="img"
                                                      t-att-aria-label="card.label">
-                                                    <span t-if="!avatarUrl(card)" class="ghori-us-avatar-text"
+                                                    <i t-if="card.isReturn" class="fa fa-reply ghori-us-avatar-text"/>
+                                                    <span t-elif="!avatarUrl(card)" class="ghori-us-avatar-text"
                                                           t-esc="initials(card.label, card.login)"/>
                                                 </div>
                                             </div>
@@ -52,7 +65,10 @@
                                         </div>
                                     </div>
                                 </t>
-                                <button type="button" class="ghori-us-card ghori-us-add" t-on-click="onAddClick">
+                                <button t-if="us.canManageAccounts"
+                                        type="button"
+                                        class="ghori-us-card ghori-us-add"
+                                        t-on-click="onAddClick">
                                     <i class="fa fa-plus fa-2x"/>
                                     <span>Add account</span>
                                 </button>
@@ -62,20 +78,36 @@
 
                     <t t-if="us.mode === 'add'">
                         <div class="ghori-us-title">Add account</div>
-                        <div class="ghori-us-form">
+                        <div class="ghori-us-form" t-on-keydown="onFormKeydown">
+                            <label>Select user</label>
+                            <div class="ghori-us-user-search">
+                                <input type="text" class="o_input"
+                                       placeholder="Search internal users by name or login"
+                                       autocomplete="off"
+                                       t-att-value="state.userSearchTerm"
+                                       t-on-input="onUserSearchInput"
+                                       t-on-focus="onUserSearchFocus"
+                                       t-on-keydown="onUserSearchKeydown"/>
+                                <ul t-if="state.userSearchOpen and state.userSearchResults.length"
+                                    class="ghori-us-user-results">
+                                    <li t-foreach="state.userSearchResults" t-as="user" t-key="user.id"
+                                        t-att-class="userSearchResultClass(user_index)"
+                                        t-on-mouseenter="() => this.onUserSearchHover(user_index)"
+                                        t-on-click="(ev) => this.onSelectUser(user, ev)">
+                                        <span class="ghori-us-user-name" t-esc="user.name"/>
+                                        <span class="ghori-us-user-login" t-esc="user.login"/>
+                                    </li>
+                                </ul>
+                                <div t-if="state.userSearchLoading" class="ghori-us-user-search-hint">
+                                    Searching…
+                                </div>
+                            </div>
                             <label>Display name</label>
                             <input type="text" class="o_input" placeholder="e.g. Warehouse admin"
                                    t-model="state.draftLabel"/>
                             <label>Login <span class="text-danger">*</span></label>
                             <input type="text" class="o_input" placeholder="email or username" autocomplete="username"
                                    t-model="state.draftLogin"/>
-                            <label>Password</label>
-                            <input type="password" class="o_input" placeholder="Optional if you enter each time"
-                                   autocomplete="new-password" t-model="state.draftPassword"/>
-                            <label class="ghori-us-remember">
-                                <input type="checkbox" t-model="state.draftRemember"/>
-                                Remember password on this browser
-                            </label>
                             <div class="ghori-us-form-actions">
                                 <button type="button" class="btn btn-secondary"
                                         t-on-click="onCancelForm">Cancel</button>
@@ -86,21 +118,36 @@
 
                     <t t-if="us.mode === 'edit'">
                         <div class="ghori-us-title">Edit account</div>
-                        <div class="ghori-us-form">
+                        <div class="ghori-us-form" t-on-keydown="onFormKeydown">
+                            <label>Select user</label>
+                            <div class="ghori-us-user-search">
+                                <input type="text" class="o_input"
+                                       placeholder="Search internal users by name or login"
+                                       autocomplete="off"
+                                       t-att-value="state.userSearchTerm"
+                                       t-on-input="onUserSearchInput"
+                                       t-on-focus="onUserSearchFocus"
+                                       t-on-keydown="onUserSearchKeydown"/>
+                                <ul t-if="state.userSearchOpen and state.userSearchResults.length"
+                                    class="ghori-us-user-results">
+                                    <li t-foreach="state.userSearchResults" t-as="user" t-key="user.id"
+                                        t-att-class="userSearchResultClass(user_index)"
+                                        t-on-mouseenter="() => this.onUserSearchHover(user_index)"
+                                        t-on-click="(ev) => this.onSelectUser(user, ev)">
+                                        <span class="ghori-us-user-name" t-esc="user.name"/>
+                                        <span class="ghori-us-user-login" t-esc="user.login"/>
+                                    </li>
+                                </ul>
+                                <div t-if="state.userSearchLoading" class="ghori-us-user-search-hint">
+                                    Searching…
+                                </div>
+                            </div>
                             <label>Display name</label>
                             <input type="text" class="o_input" placeholder="e.g. Warehouse admin"
                                    t-model="state.draftLabel"/>
                             <label>Login <span class="text-danger">*</span></label>
                             <input type="text" class="o_input" placeholder="email or username" autocomplete="username"
                                    t-model="state.draftLogin"/>
-                            <label>Password</label>
-                            <input type="password" class="o_input"
-                                   placeholder="Leave blank to keep saved password"
-                                   autocomplete="new-password" t-model="state.draftPassword"/>
-                            <label class="ghori-us-remember">
-                                <input type="checkbox" t-model="state.draftRemember"/>
-                                Remember password on this browser
-                            </label>
                             <div class="ghori-us-form-actions">
                                 <button type="button" class="btn btn-secondary"
                                         t-on-click="onCancelForm">Cancel</button>
@@ -111,7 +158,7 @@
 
                     <t t-if="us.mode === 'password'">
                         <div class="ghori-us-title">Enter password</div>
-                        <div class="ghori-us-form">
+                        <div class="ghori-us-form" t-on-keydown="onFormKeydown">
                             <label>Password for selected account</label>
                             <input type="password" class="o_input" autocomplete="current-password"
                                    t-ref="passwordInput"
@@ -144,8 +191,8 @@
                         <span><kbd>←</kbd><kbd>→</kbd> browse</span>
                         <span><kbd>Enter</kbd> switch</span>
                         <span><kbd>Esc</kbd> close</span>
-                        <span><kbd>N</kbd> new account</span>
-                        <span><kbd>E</kbd> edit account</span>
+                        <span t-if="us.canManageAccounts"><kbd>N</kbd> new account</span>
+                        <span t-if="us.canManageAccounts"><kbd>E</kbd> edit account</span>
                     </div>
                 </div>
             </div>

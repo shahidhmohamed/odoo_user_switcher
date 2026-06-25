@@ -1,9 +1,10 @@
 /** @odoo-module **/
 
-import { Component, useEffect, useRef, useState } from "@odoo/owl";
+import { Component, onWillUnmount, useEffect, useRef, useState } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
 import { browser } from "@web/core/browser/browser";
 import { imageUrl } from "@web/core/utils/urls";
+import { rpc } from "@web/core/network/rpc";
 import { userSwitcherState } from "./user_switcher_service";
 
 export class UserSwitcherOverlay extends Component {
@@ -22,6 +23,18 @@ export class UserSwitcherOverlay extends Component {
             draftLogin: "",
             draftPassword: "",
             draftRemember: false,
+            userSearchTerm: "",
+            userSearchResults: [],
+            userSearchLoading: false,
+            userSearchOpen: false,
+            userSearchSelectedIndex: 0,
+        });
+        this._userSearchTimer = null;
+
+        onWillUnmount(() => {
+            if (this._userSearchTimer) {
+                browser.clearTimeout(this._userSearchTimer);
+            }
         });
 
         useEffect(
@@ -47,6 +60,35 @@ export class UserSwitcherOverlay extends Component {
 
         useEffect(
             () => {
+                if (this.us.mode === "add") {
+                    this.resetAddForm();
+                }
+            },
+            () => [this.us.mode]
+        );
+
+        useEffect(
+            () => {
+                if (this.us.mode === "add" || this.us.mode === "edit") {
+                    this.searchUsers(this.state.userSearchTerm);
+                } else {
+                    this.state.userSearchResults = [];
+                    this.state.userSearchOpen = false;
+                }
+            },
+            () => [this.us.mode]
+        );
+
+        useEffect(
+            () => {
+                this.state.userSearchSelectedIndex = 0;
+                this.scrollUserSearchIntoView();
+            },
+            () => [this.state.userSearchResults.length, this.state.userSearchTerm]
+        );
+
+        useEffect(
+            () => {
                 if (this.us.mode !== "edit" || !this.us.editAccountId) {
                     return;
                 }
@@ -58,6 +100,7 @@ export class UserSwitcherOverlay extends Component {
                 this.state.draftLogin = account.login || "";
                 this.state.draftPassword = "";
                 this.state.draftRemember = Boolean(account.rememberPassword);
+                this.state.userSearchTerm = account.label || account.login || "";
             },
             () => [this.us.mode, this.us.editAccountId]
         );
@@ -110,6 +153,7 @@ export class UserSwitcherOverlay extends Component {
         this.switcher.state.mode = "picker";
         this.switcher.state.editAccountId = null;
         this.switcher.state.error = "";
+        this.resetUserSearch();
     }
 
     onBackdropClick(ev) {
@@ -127,14 +171,141 @@ export class UserSwitcherOverlay extends Component {
         }
     }
 
-    onAddClick() {
-        this.switcher.state.mode = "add";
-        this.switcher.state.editAccountId = null;
-        this.switcher.state.error = "";
+    resetAddForm() {
         this.state.draftLabel = "";
         this.state.draftLogin = "";
         this.state.draftPassword = "";
         this.state.draftRemember = false;
+        this.resetUserSearch();
+    }
+
+    resetUserSearch() {
+        this.state.userSearchTerm = "";
+        this.state.userSearchResults = [];
+        this.state.userSearchLoading = false;
+        this.state.userSearchOpen = false;
+        this.state.userSearchSelectedIndex = 0;
+    }
+
+    async searchUsers(term) {
+        this.state.userSearchLoading = true;
+        try {
+            const results = await rpc("/ghori_user_switcher/search_users", {
+                term: term || "",
+                limit: 20,
+            });
+            this.state.userSearchResults = Array.isArray(results) ? results : [];
+            this.state.userSearchOpen = true;
+            this.state.userSearchSelectedIndex = 0;
+        } catch {
+            this.state.userSearchResults = [];
+            this.state.userSearchOpen = false;
+        } finally {
+            this.state.userSearchLoading = false;
+        }
+    }
+
+    onUserSearchInput(ev) {
+        const term = ev.target.value || "";
+        this.state.userSearchTerm = term;
+        if (this._userSearchTimer) {
+            browser.clearTimeout(this._userSearchTimer);
+        }
+        this._userSearchTimer = browser.setTimeout(() => {
+            this.searchUsers(term);
+        }, 250);
+    }
+
+    onUserSearchFocus() {
+        if (!this.state.userSearchResults.length) {
+            this.searchUsers(this.state.userSearchTerm);
+        } else {
+            this.state.userSearchOpen = true;
+        }
+    }
+
+    userSearchResultClass(index) {
+        return index === this.state.userSearchSelectedIndex ? "is-selected" : "";
+    }
+
+    scrollUserSearchIntoView() {
+        if (!this.state.userSearchOpen || !this.state.userSearchResults.length) {
+            return;
+        }
+        browser.requestAnimationFrame(() => {
+            const selected = this.overlayRef.el?.querySelector(
+                ".ghori-us-user-results li.is-selected"
+            );
+            selected?.scrollIntoView({ block: "nearest" });
+        });
+    }
+
+    onUserSearchHover(index) {
+        this.state.userSearchSelectedIndex = index;
+    }
+
+    onUserSearchKeydown(ev) {
+        const results = this.state.userSearchResults;
+        const dropdownOpen = this.state.userSearchOpen && results.length > 0;
+
+        if (ev.key === "ArrowDown") {
+            ev.preventDefault();
+            ev.stopPropagation();
+            if (!dropdownOpen) {
+                if (results.length) {
+                    this.state.userSearchOpen = true;
+                    this.state.userSearchSelectedIndex = 0;
+                }
+                return;
+            }
+            const next =
+                this.state.userSearchSelectedIndex < results.length - 1
+                    ? this.state.userSearchSelectedIndex + 1
+                    : 0;
+            this.state.userSearchSelectedIndex = next;
+            this.scrollUserSearchIntoView();
+            return;
+        }
+
+        if (ev.key === "ArrowUp") {
+            if (!dropdownOpen) {
+                return;
+            }
+            ev.preventDefault();
+            ev.stopPropagation();
+            const prev =
+                this.state.userSearchSelectedIndex > 0
+                    ? this.state.userSearchSelectedIndex - 1
+                    : results.length - 1;
+            this.state.userSearchSelectedIndex = prev;
+            this.scrollUserSearchIntoView();
+            return;
+        }
+
+        if (ev.key === "Enter" && dropdownOpen) {
+            const user = results[this.state.userSearchSelectedIndex];
+            if (user) {
+                ev.preventDefault();
+                ev.stopPropagation();
+                this.onSelectUser(user, ev);
+            }
+        }
+    }
+
+    onSelectUser(user, ev) {
+        ev?.stopPropagation?.();
+        this.state.draftLogin = user.login || "";
+        this.state.draftLabel = user.name || user.login || "";
+        this.state.userSearchTerm = user.name || user.login || "";
+        this.state.userSearchOpen = false;
+        this.state.userSearchSelectedIndex = 0;
+        this.switcher.state.error = "";
+    }
+
+    onAddClick() {
+        this.switcher.state.mode = "add";
+        this.switcher.state.editAccountId = null;
+        this.switcher.state.error = "";
     }
 
     onEditClick(accountId, ev) {
@@ -142,6 +313,23 @@ export class UserSwitcherOverlay extends Component {
         this.switcher.state.mode = "edit";
         this.switcher.state.editAccountId = accountId;
         this.switcher.state.error = "";
+    }
+
+    onFormKeydown(ev) {
+        if (ev.key !== "Enter") {
+            return;
+        }
+        const inUserSearch = ev.target instanceof HTMLElement && ev.target.closest(".ghori-us-user-search");
+        if (inUserSearch && this.state.userSearchOpen && this.state.userSearchResults.length) {
+            return;
+        }
+        ev.preventDefault();
+        ev.stopPropagation();
+        if (this.us.mode === "add") {
+            this.onSaveAccount();
+        } else if (this.us.mode === "edit") {
+            this.onUpdateAccount();
+        }
     }
 
     onSaveAccount() {
@@ -175,6 +363,10 @@ export class UserSwitcherOverlay extends Component {
         this.switcher.removeAccount(accountId);
     }
 
+    onReturnClick() {
+        this.switcher.returnToSelf();
+    }
+
     onPasswordInput(ev) {
         this.switcher.state.passwordValue = ev.target.value;
     }
@@ -202,6 +394,9 @@ export class UserSwitcherOverlay extends Component {
     }
 
     avatarStyle(card) {
+        if (card?.isReturn) {
+            return `background-color:${card.color || "#7c3aed"};`;
+        }
         const url = this.avatarUrl(card);
         if (url) {
             const safeUrl = url.replace(/"/g, '\\"');

@@ -3,13 +3,18 @@
     "name": "Ghori User Switcher",
     "summary": "Fast account switcher overlay (keyboard shortcut, saved logins)",
     "category": "Customizations",
-    "version": "18.0.1.0.30",
+    "version": "18.0.1.4.4",
     "license": "LGPL-3",
     "author": "Ghori",
     "images": ["static/description/icon.png"],
     "installable": True,
     "application": False,
-    "depends": ["web"],
+    "depends": ["web", "base"],
+    "data": [
+        "security/ghori_user_switcher_groups.xml",
+        "security/ir.model.access.csv",
+        "security/ghori_user_switcher_rules.xml",
+    ],
     "assets": {
         "web.assets_backend": [
             "ghori_user_switcher/static/src/scss/user_switcher.scss",

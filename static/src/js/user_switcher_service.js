@@ -12,21 +12,63 @@ import { _t } from "@web/core/l10n/translation";
 const OPEN_HOTKEYS = new Set(["control+shift+u", "control+alt+u"]);
 const JUST_SWITCHED_KEY = "ghori_us_just_switched";
 
-const STORAGE_KEY = "ghori_user_switcher_accounts_v1";
-const HISTORY_KEY = "ghori_user_switcher_history_v1";
+// Saved accounts and switch order now live in the database (model
+// ghori.user.switcher.account), scoped to the current user. We keep an
+// in-memory cache so the rest of the (synchronous) UI logic is unchanged;
+// the cache is filled once on service start and written back via RPC.
+// No password is ever stored: switching uses server-side "login as".
+let accountsCache = [];
 
-function loadSwitchHistory() {
+function callKw(model, method, args) {
+    return rpc("/web/dataset/call_kw", {
+        model,
+        method,
+        args,
+        kwargs: {},
+    });
+}
+
+async function fetchAccountsFromDb() {
     try {
-        const raw = browser.localStorage.getItem(HISTORY_KEY);
-        const parsed = raw ? JSON.parse(raw) : [];
-        return Array.isArray(parsed) ? parsed : [];
+        const result = await callKw("ghori.user.switcher.account", "ghori_us_load", []);
+        accountsCache = Array.isArray(result?.accounts) ? result.accounts : [];
     } catch {
-        return [];
+        accountsCache = [];
+    }
+    return accountsCache;
+}
+
+// Whether this session may use the switcher, and whether it is currently
+// impersonating (so we can offer "return to my account"). Authority comes
+// from the original switcher admin, not the (possibly low-privilege) current
+// user, so an impersonated test user can still switch back.
+async function fetchSwitchContext() {
+    try {
+        const ctx = await rpc("/ghori_user_switcher/context", {});
+        return {
+            canSwitch: Boolean(ctx?.can_switch),
+            impersonating: Boolean(ctx?.impersonating),
+            impersonatorLogin: ctx?.impersonator_login || "",
+            canManageAccounts: Boolean(ctx?.can_manage_accounts),
+        };
+    } catch {
+        return {
+            canSwitch: false,
+            impersonating: false,
+            impersonatorLogin: "",
+            canManageAccounts: false,
+        };
     }
 }
 
-function saveSwitchHistory(logins) {
-    browser.localStorage.setItem(HISTORY_KEY, JSON.stringify(logins.slice(0, 25)));
+function persistAccountsToDb(accounts) {
+    const payload = accounts.map((a) => ({
+        login: a.login,
+        label: a.label,
+        color: a.color,
+    }));
+    // Fire-and-forget, mirroring the old synchronous localStorage write.
+    callKw("ghori.user.switcher.account", "ghori_us_save", [payload]).catch(() => {});
 }
 
 function recordSwitchHistory(login) {
@@ -34,15 +76,22 @@ function recordSwitchHistory(login) {
     if (!key) {
         return;
     }
-    const next = [key, ...loadSwitchHistory().filter((entry) => entry !== key)];
-    saveSwitchHistory(next);
+    const now = new Date().toISOString();
+    const entry = accountsCache.find((a) => normalizeLogin(a.login) === key);
+    if (entry) {
+        entry.lastSwitchedOn = now;
+    }
 }
 
 function switchHistoryRankByLogin() {
     const rank = new Map();
     let offset = 0;
-    for (const login of loadSwitchHistory()) {
-        const key = normalizeLogin(login);
+    // Most-recently-switched first, derived from the DB-backed lastSwitchedOn.
+    const byRecency = [...accountsCache]
+        .filter((a) => a.lastSwitchedOn)
+        .sort((a, b) => String(b.lastSwitchedOn).localeCompare(String(a.lastSwitchedOn)));
+    for (const account of byRecency) {
+        const key = normalizeLogin(account.login);
         if (key && !rank.has(key)) {
             rank.set(key, offset++);
         }
@@ -96,42 +145,13 @@ function colorFromLogin(login) {
 }
 
 function loadAccounts() {
-    try {
-        const raw = browser.localStorage.getItem(STORAGE_KEY);
-        if (!raw) {
-            return [];
-        }
-        const parsed = JSON.parse(raw);
-        return Array.isArray(parsed) ? parsed : [];
-    } catch {
-        return [];
-    }
+    // Synchronous read from the in-memory cache (filled from DB on start/open).
+    return accountsCache.map((a) => ({ ...a }));
 }
 
 function saveAccounts(accounts) {
-    browser.localStorage.setItem(STORAGE_KEY, JSON.stringify(accounts));
-}
-
-function encodeSecret(value) {
-    if (!value) {
-        return "";
-    }
-    try {
-        return btoa(unescape(encodeURIComponent(value)));
-    } catch {
-        return "";
-    }
-}
-
-function decodeSecret(value) {
-    if (!value) {
-        return "";
-    }
-    try {
-        return decodeURIComponent(escape(atob(value)));
-    } catch {
-        return "";
-    }
+    accountsCache = accounts.map((a) => ({ ...a }));
+    persistAccountsToDb(accountsCache);
 }
 
 function normalizeLogin(login) {
@@ -159,6 +179,9 @@ function lastConnectedByLogin() {
 }
 
 function enrichAccountAvatar(account) {
+    if (account.isReturn) {
+        return { ...account };
+    }
     let partnerId = account.partnerId;
     let partnerWriteDate = account.partnerWriteDate;
 
@@ -183,30 +206,11 @@ function enrichAccountAvatar(account) {
     };
 }
 
-function persistAvatarMetadata(displayAccounts) {
-    const saved = loadAccounts();
-    let changed = false;
-    const updated = saved.map((account) => {
-        const enriched = displayAccounts.find((a) => a.id === account.id);
-        if (!enriched?.partnerId) {
-            return account;
-        }
-        if (
-            account.partnerId !== enriched.partnerId ||
-            account.partnerWriteDate !== enriched.partnerWriteDate
-        ) {
-            changed = true;
-            return {
-                ...account,
-                partnerId: enriched.partnerId,
-                partnerWriteDate: enriched.partnerWriteDate,
-            };
-        }
-        return account;
-    });
-    if (changed) {
-        saveAccounts(updated);
-    }
+function persistAvatarMetadata() {
+    // Avatar metadata (partnerId / writeDate) is re-derived from
+    // getLastConnectedUsers() on every open, so there is nothing to persist
+    // server-side. Kept as a no-op to preserve the call sites.
+    return;
 }
 
 const FOCUSABLE_SELECTOR =
@@ -275,6 +279,14 @@ export const userSwitcherState = reactive({
     passwordValue: "",
     error: "",
     successMessage: "",
+    /** True while logged in as someone else via an admin's impersonation. */
+    impersonating: false,
+    /** Login of the original admin to return to. */
+    impersonatorLogin: "",
+    /** May open the switcher (admin or impersonated return). */
+    canSwitch: false,
+    /** May add/edit/remove saved accounts (switcher admin only, not while impersonating). */
+    canManageAccounts: false,
 });
 
 export const userSwitcherService = {
@@ -318,14 +330,6 @@ export const userSwitcherService = {
         };
 
         const rebuildDisplayList = () => {
-            if (!loadSwitchHistory().length) {
-                const seeded = getLastConnectedUsers()
-                    .map((entry) => normalizeLogin(entry?.login))
-                    .filter(Boolean);
-                if (seeded.length) {
-                    saveSwitchHistory(seeded);
-                }
-            }
             const saved = loadAccounts().map((account) => ({
                 ...account,
                 color: account.color || colorFromLogin(account.login),
@@ -347,6 +351,22 @@ export const userSwitcherService = {
                 userSwitcherState.selectedIndex = 0;
             }
             const displayAccounts = ordered.map(enrichAccountAvatar);
+            // While impersonating, prepend a keyboard-navigable "return" card so
+            // the test user can go back with the arrow keys + Enter shortcut.
+            if (userSwitcherState.impersonating) {
+                const returnLogin = userSwitcherState.impersonatorLogin || "";
+                const returnCard = enrichAccountAvatar({
+                    id: "__ghori_us_return__",
+                    isReturn: true,
+                    login: returnLogin,
+                    label: returnLogin
+                        ? _t("Return to %s", returnLogin)
+                        : _t("Return to my account"),
+                    color: "#7c3aed",
+                });
+                displayAccounts.unshift(returnCard);
+                userSwitcherState.selectedIndex = 0;
+            }
             userSwitcherState.displayAccounts = displayAccounts;
             persistAvatarMetadata(displayAccounts);
         };
@@ -367,11 +387,26 @@ export const userSwitcherService = {
             previouslyFocused = null;
         };
 
-        const open = () => {
+        const open = async () => {
+            // Authority can come from an in-progress impersonation, so ask the
+            // server (not just the current user's groups). The server enforces
+            // this again on every switch/return route.
+            const ctx = await fetchSwitchContext();
+            userSwitcherState.impersonating = ctx.impersonating;
+            userSwitcherState.impersonatorLogin = ctx.impersonatorLogin;
+            userSwitcherState.canSwitch = ctx.canSwitch;
+            userSwitcherState.canManageAccounts = ctx.canManageAccounts;
+            if (!ctx.canSwitch) {
+                return;
+            }
             previouslyFocused = document.activeElement;
             if (document.activeElement instanceof HTMLElement) {
                 document.activeElement.blur();
             }
+            // Load the latest saved accounts from the database before showing.
+            // While impersonating, the test user cannot read the admin's saved
+            // list (record rule); that's fine — the "Return" action is shown.
+            await fetchAccountsFromDb();
             rebuildDisplayList();
             userSwitcherState.isOpen = true;
             userSwitcherState.mode = "picker";
@@ -391,7 +426,10 @@ export const userSwitcherService = {
 
         const isSessionAccount = (account) => loginsMatch(account?.login, currentLogin());
 
-        const addAccount = ({ label, login, password, remember }) => {
+        const addAccount = ({ label, login }) => {
+            if (!userSwitcherState.canManageAccounts) {
+                throw new Error(_t("You are not allowed to manage saved accounts."));
+            }
             const trimmedLogin = (login || "").trim();
             if (!trimmedLogin) {
                 throw new Error(_t("Login is required."));
@@ -406,8 +444,6 @@ export const userSwitcherService = {
                 login: trimmedLogin,
                 db: session.db,
                 color: colorFromLogin(trimmedLogin),
-                rememberPassword: Boolean(remember),
-                passwordEnc: remember && password ? encodeSecret(password) : "",
             };
             accounts.push(entry);
             saveAccounts(accounts);
@@ -419,7 +455,10 @@ export const userSwitcherService = {
             showSuccess(_t("Account saved."));
         };
 
-        const updateAccount = (accountId, { label, login, password, remember }) => {
+        const updateAccount = (accountId, { label, login }) => {
+            if (!userSwitcherState.canManageAccounts) {
+                throw new Error(_t("You are not allowed to manage saved accounts."));
+            }
             const trimmedLogin = (login || "").trim();
             if (!trimmedLogin) {
                 throw new Error(_t("Login is required."));
@@ -433,22 +472,12 @@ export const userSwitcherService = {
                 throw new Error(_t("An account with this login already exists."));
             }
             const existing = accounts[idx];
-            let passwordEnc = existing.passwordEnc || "";
-            if (remember) {
-                if (password) {
-                    passwordEnc = encodeSecret(password);
-                }
-            } else {
-                passwordEnc = "";
-            }
             accounts[idx] = {
                 ...existing,
                 label: (label || "").trim() || trimmedLogin,
                 login: trimmedLogin,
                 db: session.db,
                 color: colorFromLogin(trimmedLogin),
-                rememberPassword: Boolean(remember),
-                passwordEnc: remember ? passwordEnc : "",
             };
             saveAccounts(accounts);
             rebuildDisplayList();
@@ -461,6 +490,9 @@ export const userSwitcherService = {
         };
 
         const removeAccount = (accountId) => {
+            if (!userSwitcherState.canManageAccounts) {
+                return;
+            }
             const accounts = loadAccounts().filter((a) => a.id !== accountId);
             saveAccounts(accounts);
             rebuildDisplayList();
@@ -468,29 +500,21 @@ export const userSwitcherService = {
             showSuccess(_t("Account removed."));
         };
 
-        const resolvePassword = (account, passwordOverride) => {
-            if (passwordOverride) {
-                return passwordOverride;
-            }
-            if (account.rememberPassword && account.passwordEnc) {
-                return decodeSecret(account.passwordEnc);
-            }
-            return "";
-        };
-
-        const authenticateAs = async (account, password) => {
+        // Server-side "login as": no password is sent or stored. The server
+        // verifies the actor is in the Ghori User Switcher group before
+        // finalizing the session as the target user.
+        const authenticateAs = async (account) => {
             userSwitcherState.loading = true;
             userSwitcherState.error = "";
             try {
-                // Authenticate in-place (no /web/session/destroy first). On failure
-                // Odoo raises AccessDenied and the current session stays intact.
-                const result = await rpc("/web/session/authenticate", {
+                const result = await rpc("/ghori_user_switcher/impersonate", {
                     db: account.db || session.db,
                     login: account.login,
-                    password,
                 });
-                if (!result?.uid) {
-                    throw new Error(_t("Authentication failed. Check login and password."));
+                if (!result?.ok || !result?.uid) {
+                    throw new Error(
+                        result?.error || _t("Could not switch account. Try again.")
+                    );
                 }
                 recordSwitchHistory(account.login);
                 close();
@@ -513,22 +537,54 @@ export const userSwitcherService = {
             }
         };
 
-        const switchToAccount = async (account, passwordOverride) => {
-            if (!account || isSessionAccount(account)) {
+        const switchToAccount = async (account) => {
+            if (!account) {
                 close();
                 return;
             }
-            const password = resolvePassword(account, passwordOverride);
-            if (!password) {
-                userSwitcherState.mode = "password";
-                userSwitcherState.passwordAccountId = account.id;
-                userSwitcherState.passwordValue = "";
-                userSwitcherState.error = "";
+            // The synthetic "return" card goes back to the original admin.
+            if (account.isReturn) {
+                await returnToSelf();
                 return;
             }
-            await authenticateAs(account, password);
+            if (isSessionAccount(account)) {
+                close();
+                return;
+            }
+            // No password prompt: switching is permission-based (login as).
+            await authenticateAs(account);
         };
 
+        // Return to the original admin that started the impersonation chain.
+        const returnToSelf = async () => {
+            userSwitcherState.loading = true;
+            userSwitcherState.error = "";
+            try {
+                const result = await rpc("/ghori_user_switcher/return", {});
+                if (!result?.ok || !result?.uid) {
+                    throw new Error(
+                        result?.error || _t("Could not return to your account.")
+                    );
+                }
+                close();
+                browser.sessionStorage.setItem(JUST_SWITCHED_KEY, "1");
+                browser.location.assign("/odoo");
+                return true;
+            } catch (error) {
+                const message =
+                    error?.data?.message ||
+                    error?.message ||
+                    _t("Could not return to your account.");
+                userSwitcherState.error = message;
+                notification.add(message, { type: "danger" });
+                return false;
+            } finally {
+                userSwitcherState.loading = false;
+            }
+        };
+
+        // Retained for the overlay's password-mode UI; with permission-based
+        // switching it simply performs the same passwordless switch.
         const confirmPasswordSwitch = async () => {
             const account = userSwitcherState.accounts.find(
                 (a) => a.id === userSwitcherState.passwordAccountId
@@ -537,12 +593,7 @@ export const userSwitcherService = {
                 userSwitcherState.mode = "picker";
                 return;
             }
-            const password = userSwitcherState.passwordValue || "";
-            if (!password) {
-                userSwitcherState.error = _t("Enter your password.");
-                return;
-            }
-            await authenticateAs(account, password);
+            await authenticateAs(account);
         };
 
         const selectRelative = (delta) => {
@@ -605,14 +656,25 @@ export const userSwitcherService = {
                     cycleTabInOverlay(ev, overlay);
                     return;
                 }
+                const active = document.activeElement;
+                const userSearchActive =
+                    active instanceof HTMLInputElement &&
+                    active.closest(".ghori-us-user-search") &&
+                    overlay?.querySelector(".ghori-us-user-results li");
+                if (userSearchActive && (ev.key === "Enter" || ev.key === "ArrowDown" || ev.key === "ArrowUp")) {
+                    return;
+                }
                 if (ev.key === "Enter") {
-                    const active = document.activeElement;
                     if (overlay?.contains(active)) {
                         stopKey(ev);
                         if (active instanceof HTMLButtonElement) {
                             active.click();
                         } else if (userSwitcherState.mode === "password") {
                             confirmPasswordSwitch();
+                        } else if (userSwitcherState.mode === "add" || userSwitcherState.mode === "edit") {
+                            overlay
+                                ?.querySelector(".ghori-us-form .btn-primary")
+                                ?.click();
                         }
                     }
                 }
@@ -634,15 +696,18 @@ export const userSwitcherService = {
             } else if (ev.key === "Enter") {
                 stopKey(ev);
                 switchToAccount(selectedEntry());
-            } else if (ev.key === "n" || ev.key === "N" || ev.key === "+") {
+            } else if (
+                userSwitcherState.canManageAccounts &&
+                (ev.key === "n" || ev.key === "N" || ev.key === "+")
+            ) {
                 stopKey(ev);
                 userSwitcherState.mode = "add";
                 userSwitcherState.editAccountId = null;
                 userSwitcherState.error = "";
-            } else if (ev.key === "e" || ev.key === "E") {
+            } else if (userSwitcherState.canManageAccounts && (ev.key === "e" || ev.key === "E")) {
                 stopKey(ev);
                 const entry = selectedEntry();
-                if (entry) {
+                if (entry && !entry.isReturn) {
                     userSwitcherState.mode = "edit";
                     userSwitcherState.editAccountId = entry.id;
                     userSwitcherState.error = "";
@@ -678,6 +743,19 @@ export const userSwitcherService = {
             });
         };
 
+        // Warm the in-memory cache + impersonation context once at startup so
+        // the first open() and systray render are ready. Skip work for sessions
+        // that may not switch at all.
+        fetchSwitchContext().then((ctx) => {
+            userSwitcherState.impersonating = ctx.impersonating;
+            userSwitcherState.impersonatorLogin = ctx.impersonatorLogin;
+            userSwitcherState.canSwitch = ctx.canSwitch;
+            userSwitcherState.canManageAccounts = ctx.canManageAccounts;
+            if (ctx.canSwitch && !ctx.impersonating) {
+                fetchAccountsFromDb().then(() => rebuildDisplayList());
+            }
+        });
+
         browser.addEventListener("keydown", onGlobalKeydown, true);
         browser.addEventListener("focusin", onFocusIn, true);
 
@@ -698,6 +776,7 @@ export const userSwitcherService = {
             removeAccount,
             switchToAccount,
             confirmPasswordSwitch,
+            returnToSelf,
             selectRelative,
             selectedEntry,
         };

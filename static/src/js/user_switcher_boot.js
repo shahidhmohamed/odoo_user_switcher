@@ -15,15 +15,21 @@ registry.category("main_components").add("ghori_user_switcher_overlay", {
     Component: UserSwitcherOverlay,
 });
 
-registry.category("user_menuitems").add("ghori.switch_account", (env) => ({
-    type: "item",
-    id: "ghori_switch_account",
-    description: _t("Switch account"),
-    callback: () => {
-        env.services.ghori_user_switcher.open();
-    },
-    sequence: 15,
-}));
+registry.category("user_menuitems").add("ghori.switch_account", (env) => {
+    const state = env.services.ghori_user_switcher?.state;
+    if (!state?.canSwitch) {
+        return false;
+    }
+    return {
+        type: "item",
+        id: "ghori_switch_account",
+        description: state.impersonating ? _t("Return to my account") : _t("Switch account"),
+        callback: () => {
+            env.services.ghori_user_switcher.open();
+        },
+        sequence: 15,
+    };
+});
 
 patch(WebClient.prototype, {
     setup() {

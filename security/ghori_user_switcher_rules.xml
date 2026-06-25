@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<odoo>
+    <!-- A switcher user can only see and manage their own saved accounts. -->
+    <record id="rule_ghori_user_switcher_account_own" model="ir.rule">
+        <field name="name">User Switcher: own accounts only</field>
+        <field name="model_id" ref="model_ghori_user_switcher_account"/>
+        <field name="domain_force">[('owner_user_id', '=', user.id)]</field>
+        <field name="groups" eval="[(4, ref('ghori_user_switcher.group_ghori_user_switcher'))]"/>
+    </record>
+</odoo>

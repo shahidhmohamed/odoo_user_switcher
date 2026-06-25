@@ -1,0 +1,2 @@
+id,name,model_id/id,group_id/id,perm_read,perm_write,perm_create,perm_unlink
+access_ghori_user_switcher_account,ghori.user.switcher.account,model_ghori_user_switcher_account,ghori_user_switcher.group_ghori_user_switcher,1,1,1,1

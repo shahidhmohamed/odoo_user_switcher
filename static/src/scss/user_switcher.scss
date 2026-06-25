@@ -101,6 +101,19 @@ body.ghori-us-open {
     text-align: center;
 }
 
+.ghori-us-card--return {
+    border-color: #7c3aed;
+    box-shadow: 0 0 0 1px rgba(124, 58, 237, 0.25);
+
+    .ghori-us-avatar {
+        color: #fff;
+
+        .ghori-us-avatar-text {
+            font-size: 1.35rem;
+        }
+    }
+}
+
 .ghori-us-card {
     position: relative;
     display: flex;
@@ -326,6 +339,60 @@ body.ghori-us-open {
         font-weight: 600;
         color: #334155;
     }
+}
+
+.ghori-us-user-search {
+    position: relative;
+}
+
+.ghori-us-user-results {
+    position: absolute;
+    z-index: 2;
+    top: calc(100% + 0.25rem);
+    left: 0;
+    right: 0;
+    max-height: 220px;
+    overflow-y: auto;
+    margin: 0;
+    padding: 0.25rem 0;
+    list-style: none;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.5rem;
+    background: #fff;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+
+    li {
+        display: flex;
+        flex-direction: column;
+        gap: 0.1rem;
+        padding: 0.55rem 0.75rem;
+        cursor: pointer;
+
+        &:hover,
+        &.is-selected {
+            background: #f8fafc;
+        }
+
+        &.is-selected {
+            background: #e0f2fe;
+        }
+    }
+}
+
+.ghori-us-user-name {
+    font-weight: 600;
+    color: #0f172a;
+}
+
+.ghori-us-user-login {
+    font-size: 0.82rem;
+    color: #64748b;
+}
+
+.ghori-us-user-search-hint {
+    margin-top: 0.35rem;
+    font-size: 0.82rem;
+    color: #94a3b8;
 }
 
 .ghori-us-remember {
