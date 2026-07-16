@@ -21,8 +21,8 @@ export class UserSwitcherSystray extends Component {
     setup() {
         this.switcher = useService("ghori_user_switcher");
         this.state = useState({ allowed: false, impersonating: false });
-        // Show the entry to switcher admins AND to test users currently being
-        // impersonated (so they can return). Authority is decided server-side.
+        // Shown only for User Switcher group members (or while returning from
+        // impersonation). Decided server-side — assign the group on the user form.
         rpc("/ghori_user_switcher/context", {})
             .then((ctx) => {
                 this.state.allowed = Boolean(ctx?.can_switch);

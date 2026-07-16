@@ -51,6 +51,9 @@ class GhoriUserSwitcherController(Controller):
         The right comes from the original switcher admin: a regular test user
         that an admin impersonated may still switch (e.g. to go back), because
         the session remembers that a switcher admin initiated the chain.
+
+        Grant access by putting the user in the **Ghori User Switcher** group
+        (Settings → Users → Access Rights).
         """
         # Currently impersonating: authority comes from the original admin.
         impersonator_uid = self._impersonator_uid()
