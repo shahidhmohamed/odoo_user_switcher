@@ -3,6 +3,7 @@
 import { Component, onWillUnmount, useEffect, useRef, useState } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
 import { browser } from "@web/core/browser/browser";
+import { isMacOS } from "@web/core/browser/feature_detection";
 import { imageUrl } from "@web/core/utils/urls";
 import { rpc } from "@web/core/network/rpc";
 import { userSwitcherState } from "./user_switcher_service";
@@ -112,6 +113,10 @@ export class UserSwitcherOverlay extends Component {
 
     get selectedIndex() {
         return this.us.selectedIndex;
+    }
+
+    get isMac() {
+        return isMacOS();
     }
 
     focusOverlay() {

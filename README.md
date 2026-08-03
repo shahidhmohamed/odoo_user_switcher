@@ -7,14 +7,17 @@ Fast account switcher for Odoo 18 — save logins in the browser and switch user
 | Action | Mac | Windows / Linux |
 |--------|-----|-----------------|
 | **Primary shortcut** | `⌘` + `Shift` + `U` | `Ctrl` + `Shift` + `U` |
-| **Alternate shortcut** | `Ctrl` + `Option` + `U` | `Ctrl` + `Alt` + `U` |
+| **Alternate shortcut** | `Ctrl` + `⌘` + `U` | `Ctrl` + `Alt` + `U` |
 | **Navbar button** | Click the **users** icon (👥) in the top bar | Same |
 | **User menu** | Profile avatar → **Switch account** | Same |
+
+Press the same shortcut again to **close** the switcher.
 
 ### Mac notes
 
 - Use **Command** (`⌘`), not **Control**, for the primary shortcut.
 - **Ctrl + Shift + U** on Mac opens Odoo’s **company switcher** — not this tool.
+- **Ctrl + Option + U** does **not** open this tool (Odoo ignores Option in hotkeys). Use **Ctrl + ⌘ + U** instead.
 - **⌘ + Tab** switches macOS apps; that cannot be blocked from the browser.
 
 ---

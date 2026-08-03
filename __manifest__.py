@@ -4,7 +4,7 @@
     "summary": "Fast account switcher overlay (keyboard shortcut, saved logins)",
     "description": "Fast account switcher for Odoo. Save logins in the browser and switch users via keyboard shortcut or the navbar without leaving the app.",
     "category": "Customizations",
-    "version": "18.0.1.4.7",
+    "version": "18.0.1.4.8",
     "license": "LGPL-3",
     "author": "Ghori",
     "images": ["static/description/icon.png"],

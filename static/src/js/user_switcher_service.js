@@ -614,17 +614,24 @@ export const userSwitcherService = {
         const selectedEntry = () =>
             userSwitcherState.displayAccounts[userSwitcherState.selectedIndex] || null;
 
-        const onOpenShortcut = (ev) => {
+        const toggle = () => {
             if (userSwitcherState.isOpen) {
-                return;
+                close();
+            } else {
+                open();
             }
+        };
+
+        const onOpenShortcut = (ev) => {
             const hotkeyStr = getActiveHotkey(ev);
             if (!hotkeyStr || !OPEN_HOTKEYS.has(hotkeyStr)) {
                 return;
             }
             ev.preventDefault();
             ev.stopImmediatePropagation();
-            open();
+            // Toggle so the shortcut shown in the open window still does something
+            // (close). Previously it no-op'd while open, which felt broken.
+            toggle();
         };
 
         const stopKey = (ev) => {
@@ -759,11 +766,13 @@ export const userSwitcherService = {
         browser.addEventListener("keydown", onGlobalKeydown, true);
         browser.addEventListener("focusin", onFocusIn, true);
 
-        // Cmd+Shift+U (Mac) / Ctrl+Shift+U (Windows) — Odoo maps these to control+shift+u.
-        // Mac Ctrl+Shift+U stays Odoo's company switcher (alt+shift+u).
+        // Primary: Cmd+Shift+U (Mac) / Ctrl+Shift+U (Windows) → control+shift+u.
+        // Alternate: Ctrl+Cmd+U (Mac) / Ctrl+Alt+U (Windows) → control+alt+u.
+        // Note: on Mac, Ctrl+Shift+U is Odoo's company switcher (alt+shift+u), and
+        // Ctrl+Option+U does NOT map to control+alt+u (Option is ignored by Odoo).
         const hotkeyOptions = { global: true, bypassEditableProtection: true };
-        hotkey.add("control+shift+u", () => open(), hotkeyOptions);
-        hotkey.add("control+alt+u", () => open(), hotkeyOptions);
+        hotkey.add("control+shift+u", () => toggle(), hotkeyOptions);
+        hotkey.add("control+alt+u", () => toggle(), hotkeyOptions);
 
         return {
             state: userSwitcherState,

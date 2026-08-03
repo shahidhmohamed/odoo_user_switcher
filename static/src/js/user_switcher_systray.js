@@ -4,13 +4,16 @@ import { Component, xml, useState } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { rpc } from "@web/core/network/rpc";
+import { isMacOS } from "@web/core/browser/feature_detection";
+
+const OPEN_HINT = isMacOS() ? "⌘⇧U" : "Ctrl⇧U";
 
 export class UserSwitcherSystray extends Component {
     static template = xml`
         <div t-if="state.allowed">
             <button type="button"
                     class="o_nav_entry"
-                    t-att-title="state.impersonating ? 'Return to your account (⌘⇧U)' : 'Switch account (⌘⇧U)'"
+                    t-att-title="buttonTitle"
                     t-on-click="onClick">
                 <i t-att-class="state.impersonating ? 'fa fa-reply ghori-us-systray-icon' : 'fa fa-users ghori-us-systray-icon'"
                    role="img" aria-label="Switch account"/>
@@ -29,6 +32,13 @@ export class UserSwitcherSystray extends Component {
                 this.state.impersonating = Boolean(ctx?.impersonating);
             })
             .catch(() => {});
+    }
+
+    get buttonTitle() {
+        const hint = OPEN_HINT;
+        return this.state.impersonating
+            ? `Return to your account (${hint})`
+            : `Switch account (${hint})`;
     }
 
     onClick() {
