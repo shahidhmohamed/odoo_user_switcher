@@ -4,13 +4,64 @@ import { reactive } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { rpc } from "@web/core/network/rpc";
 import { browser } from "@web/core/browser/browser";
+import { isMacOS } from "@web/core/browser/feature_detection";
 import { getActiveHotkey } from "@web/core/hotkeys/hotkey_service";
 import { session } from "@web/session";
 import { getLastConnectedUsers, user } from "@web/core/user";
 import { _t } from "@web/core/l10n/translation";
 
-const OPEN_HOTKEYS = new Set(["control+shift+u", "control+alt+u"]);
+// Odoo maps Cmd→control and Ctrl→alt on Mac; Windows/Linux use Ctrl→control, Alt→alt.
+// Ctrl+Shift+. is handled only via matchesOpenHotkey (native keydown) — Odoo's
+// hotkey service does not whitelist "period" and throws if we hotkey.add it.
+const OPEN_HOTKEYS = new Set([
+    "control+shift+u",
+    "control+alt+u",
+]);
 const JUST_SWITCHED_KEY = "ghori_us_just_switched";
+
+/**
+ * Detect the open/toggle shortcut from raw modifiers + physical key.
+ * Prefer this over getActiveHotkey alone: some Windows layouts / IMEs report a
+ * non-"u" `ev.key` under Shift, while `ev.code` stays `KeyU`.
+ *
+ * @param {KeyboardEvent} ev
+ * @returns {boolean}
+ */
+function matchesOpenHotkey(ev) {
+    if (ev.repeat || ev.isComposing) {
+        return false;
+    }
+    const code = ev.code || "";
+    const isU = code === "KeyU" || (ev.key || "").toLowerCase() === "u";
+    const isPeriod =
+        code === "Period" || ev.key === "." || ev.key === ">";
+    if (!isU && !isPeriod) {
+        return false;
+    }
+    if (isMacOS()) {
+        // ⌘⇧U  or  ⌃⌘U  (period alternate unused on Mac)
+        if (!isU) {
+            return false;
+        }
+        const cmdShiftU = ev.metaKey && ev.shiftKey && !ev.altKey;
+        const ctrlCmdU = ev.metaKey && ev.ctrlKey && !ev.shiftKey && !ev.altKey;
+        return cmdShiftU || ctrlCmdU;
+    }
+    // Windows / Linux: Ctrl+Shift+U, Ctrl+Alt+U, Ctrl+Shift+.
+    if (!ev.ctrlKey) {
+        return false;
+    }
+    if (isU && ev.shiftKey && !ev.altKey) {
+        return true;
+    }
+    if (isU && ev.altKey && !ev.shiftKey) {
+        return true;
+    }
+    if (isPeriod && ev.shiftKey && !ev.altKey) {
+        return true;
+    }
+    return false;
+}
 
 // Saved accounts and switch order now live in the database (model
 // ghori.user.switcher.account), scoped to the current user. We keep an
@@ -397,7 +448,17 @@ export const userSwitcherService = {
             userSwitcherState.canSwitch = ctx.canSwitch;
             userSwitcherState.canManageAccounts = ctx.canManageAccounts;
             if (!ctx.canSwitch) {
+                notification.add(
+                    _t("You do not have access to the user switcher. Ask an admin to add the Ghori User Switcher group."),
+                    { type: "warning" },
+                );
                 return;
+            }
+            // Avoid stacked overlays (quick search keeps focus / inert).
+            try {
+                env.services.ghori_quick_search?.close?.();
+            } catch {
+                // Optional dependency — ignore if quick search is not installed.
             }
             previouslyFocused = document.activeElement;
             if (document.activeElement instanceof HTMLElement) {
@@ -624,7 +685,10 @@ export const userSwitcherService = {
 
         const onOpenShortcut = (ev) => {
             const hotkeyStr = getActiveHotkey(ev);
-            if (!hotkeyStr || !OPEN_HOTKEYS.has(hotkeyStr)) {
+            const matched =
+                matchesOpenHotkey(ev) ||
+                (hotkeyStr && OPEN_HOTKEYS.has(hotkeyStr));
+            if (!matched) {
                 return;
             }
             ev.preventDefault();
@@ -768,6 +832,8 @@ export const userSwitcherService = {
 
         // Primary: Cmd+Shift+U (Mac) / Ctrl+Shift+U (Windows) → control+shift+u.
         // Alternate: Ctrl+Cmd+U (Mac) / Ctrl+Alt+U (Windows) → control+alt+u.
+        // Extra (Windows): Ctrl+Shift+. via onGlobalKeydown / matchesOpenHotkey only —
+        // do not hotkey.add("…period"): Odoo AUTHORIZED_KEYS rejects it and breaks boot.
         // Note: on Mac, Ctrl+Shift+U is Odoo's company switcher (alt+shift+u), and
         // Ctrl+Option+U does NOT map to control+alt+u (Option is ignored by Odoo).
         const hotkeyOptions = { global: true, bypassEditableProtection: true };

@@ -188,7 +188,7 @@
 
                     <div class="ghori-us-hints">
                         <span t-if="isMac"><kbd>⌘⇧U</kbd> or <kbd>⌃⌘U</kbd> toggle</span>
-                        <span t-else=""><kbd>Ctrl⇧U</kbd> or <kbd>Ctrl+Alt+U</kbd> toggle</span>
+                        <span t-else=""><kbd>Ctrl⇧U</kbd> · <kbd>Ctrl+Alt+U</kbd> · <kbd>Ctrl⇧.</kbd> toggle</span>
                         <span><kbd>←</kbd><kbd>→</kbd> browse</span>
                         <span><kbd>Enter</kbd> switch</span>
                         <span><kbd>Esc</kbd> close</span>
