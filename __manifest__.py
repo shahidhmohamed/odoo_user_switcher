@@ -6,7 +6,7 @@
     "category": "Customizations",
     "version": "18.0.1.4.14",
     "license": "LGPL-3",
-    "author": "Ghori",
+    "author": "M.SHAHIDH",
     "images": ["static/description/icon.png"],
     "installable": True,
     "application": False,
